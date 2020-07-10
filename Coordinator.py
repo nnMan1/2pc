@@ -12,15 +12,44 @@ from thriftpy.rpc import client_context
 
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
 ParticipantID = messages_thrift.ParticipantID
+Vote = messages_thrift.Vote
 
 class Coordinator:
-    def __init__(self, timeout, failTime):
+    def __init__(self, timeout, option):
         self.participants = []
         self.file = open("Coor.log", "a+")
         self.timeout = timeout
-        self.option = failTime   #mozemo da definisemo kad ce da padne koordinator
+        self.option = option   #mozemo da definisemo kad ce da padne koordinator
         self.startTime = time.time()
         self.endTime = time.time()
+        self.participant = participant
+        self.votedCommit = set()
+
+    def prepare(self):
+        for participant in self.participants:
+            if participant.name != 'coordinator':
+                try:
+                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
+                        vote = client.prepare()
+                except:
+                    print('error preparing participant', participant)
+              
+
+
+    def reciveVote(self, vote_message):
+        print('Vote recived')
+        print(vote_message)
+        if vote_message.vote == Vote.COMMIT:
+            print(vote_message)
+            self.votedCommit.insert(vote_message.participant)
+        else:
+            for participant in self.participants:
+                try:
+                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
+                        client.doAbort()
+                except:
+                    print('error preparing participant', participant)
+
     
     def recover(self):
         self.file = open('Coor.log', 'r+')
@@ -78,10 +107,11 @@ if __name__ == '__main__':
     handler = Coordinator(args['timeout'], args['option'])
     handler.participants =  all_participants
     handler.recover()
+    handler.prepare()
 
-    with client_context(messages_thrift.Participant,'10.42.0.1', 7001) as client:
-        client.recover()
+    # with client_context(messages_thrift.Participant,'10.42.0.1', 7001) as client:
+    #     client.recover()
 
-    # server = make_server(messages_thrift.Participant, handler, '127.0.0.1', 6000)
-    # print("serving...")
-    # server.serve()
+    server = make_server(messages_thrift.Participant, handler, '127.0.0.1', 7003)
+    print("serving...")
+    server.serve()

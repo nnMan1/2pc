@@ -15,6 +15,16 @@ struct ParticipantID {
   2:i32 port;
 }
 
+enum Vote {
+  ABORT = 0
+  COMMIT = 1
+}
+
+struct VoteMessage {
+  1: ParticipantID particpant,
+  2: Vote vote
+}
+
 service Participant {
   
     void recover(),
@@ -26,4 +36,23 @@ service Participant {
     void doCommit(),
 
     void doAbort(),
+
+    Status prepare()
+}
+
+service Coordinator {
+  
+    void recover(),
+    
+    void __last_recorded_state(),
+
+    void canCommit(),
+
+    void doCommit(),
+
+    void doAbort(),
+
+    void prepare(),
+
+    void reciveVote(1: VoteMessage voteMessage)
 }
