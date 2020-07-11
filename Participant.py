@@ -21,6 +21,7 @@ class Participant:
     def __init__(self, particpiant, timeout, option, coordinator):
         self.participant = participant
         self.cordinator = coordinator
+        self.file = open(self.participant.name + '.log', 'a+') 
         print('Kreiran je jedan ucesnik transakcije')
     
     def recover(self):
@@ -29,24 +30,28 @@ class Participant:
     def __last_recorded_state(self):
         return 'Abort'
 
-    def canCommit(self):
+    def __canCommit(self):
         return True
 
-    def doCommit():
-        return 'commit'
+    def doCommit(self):
+        self.file.write('GLOBAL_COMMIT\n')
+        self.file.flush()
+        return Status.SUCCESSFUL
 
-    def doAbort():
-        return 'abort'
+    def doAbort(self):
+        self.file.write('GLOBAL_ABORT\n')
+        self.file.flush()
+        return Status.SUCCESSFUL
+        
 
     def prepare(self):
-        print('preparing participant', self.participant)
-        print(self.cordinator)
-        logFile = open(self.participant.name + '.log', 'a+') 
-        if self.canCommit():
-            logFile.write('VOTE_COMMTI\n')
+        if self.__canCommit():
+            self.file.write('VOTE_COMMIT\n')
+            self.file.flush()
             return Status.VOTE_COMMIT
         else:
-            logFile.write('VOTE_ABORT\n')
+            self.file.write('VOTE_ABORT\n')
+            self.file.flush()
             return Status.VOTE_ABORT
 
 

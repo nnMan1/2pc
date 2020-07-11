@@ -11,8 +11,7 @@ from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
 
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
-ParticipantID = messages_thrift.ParticipantID
-Vote = messages_thrift.Vote
+from messages_thrift import ParticipantID, Vote, Status, Participant
 
 class Coordinator:
     def __init__(self, timeout, option):
@@ -23,34 +22,43 @@ class Coordinator:
         self.startTime = time.time()
         self.endTime = time.time()
         self.participant = participant
-        self.votedCommit = set()
 
     def prepare(self):
         for participant in self.participants:
             if participant.name != 'coordinator':
+
+                vote = Status.VOTE_ABORT
                 try:
-                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
+                    with client_context(Participant, participant.ip, participant.port) as client:
+                        self.file.write(" VOTE_REQUEST\n")
+                        self.file.flush()
+                        self.startTime = time.time()
                         vote = client.prepare()
+                        self.endTime = time.time()
+                        if vote == Status.VOTE_ABORT or self.endTime - self.startTime > self.timeout:
+                            self.doAbort()
+                            return
                 except:
+                    self.doAbort
                     print('error preparing participant', participant)
-              
+        
+        self.doCommit()
 
-
-    def reciveVote(self, vote_message):
-        print('Vote recived')
-        print(vote_message)
-        if vote_message.vote == Vote.COMMIT:
-            print(vote_message)
-            self.votedCommit.insert(vote_message.participant)
-        else:
-            for participant in self.participants:
-                try:
-                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
-                        client.doAbort()
-                except:
-                    print('error preparing participant', participant)
-
-    
+    def transactionStatus(self):
+        print("Coordinator >>> Send the final decision to the requested participant")
+        retStatus = StatusReport()
+        last_line = ""
+        self.file = open('Coor.log', 'r+')
+        for line in self.file:
+            last_line = line
+        para = last_line.split(" ")
+        if str(para[-1]) =="GLOBAL_COMMIT\n":
+            retStatus.status = Status.GLOBAL_COMMIT
+            return retStatus
+        if str(para[-1]) =="GLOBAL_ABORT\n":
+            retStatus.status = Status.GLOBAL_ABORT
+            return retStatus
+                  
     def recover(self):
         self.file = open('Coor.log', 'r+')
         last_line = ""
@@ -64,17 +72,38 @@ class Coordinator:
             self.isRecover = 0
             return True
     
-    def __last_recorded_state(self):
-        return 'Abort'
+    #def __last_recorded_state(self):
+        
 
-    def canCommit():
+    def canCommit(self):
         return 'canCommit'
 
-    def doCommit():
-        return 'commit'
+    def doCommit(self):
+        for participant in self.participants:
+            if participant.name != 'coordinator':
+                try:
+                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
+                        status = client.doCommit()
+                except:
+                    print('error commiting participant', participant)
 
-    def doAbort():
-        return 'abort'
+        self.file.write('GLOBAL_COMMIT\n')
+        self.file.flush()
+
+    def doAbort(self):
+        
+        for participant in self.participants:
+            if participant.name != 'coordinator':
+                try:
+                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
+                        status = client.doAbort()
+                        if status == Status.SUCCESSFUL:
+                            break
+                except:
+                    print('error preparing participant', participant)
+
+        self.file.write('GLOBAL_ABORT\n')
+        self.file.flush()
 
 if __name__ == '__main__':
     #python3 Coordinator.py 20 participants.txt 60 0
