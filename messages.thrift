@@ -37,14 +37,14 @@ service Participant {
 
     void doAbort(),
 
-    Status prepare()
+    Status prepare(1: string id)
 }
 
 service Coordinator {
   
     void recover(),
     
-    void __last_recorded_state(),
+    Status last_recorded_state(1: string id),
 
     void canCommit(),
 

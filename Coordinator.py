@@ -9,6 +9,7 @@ import random
 import time
 from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
+import uuid
 
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
 from messages_thrift import ParticipantID, Vote, Status, Participant
@@ -22,6 +23,7 @@ class Coordinator:
         self.startTime = time.time()
         self.endTime = time.time()
         self.participant = participant
+        self.id = str(uuid.uuid4())
 
     def prepare(self):
         for participant in self.participants:
@@ -30,17 +32,18 @@ class Coordinator:
                 vote = Status.VOTE_ABORT
                 try:
                     with client_context(Participant, participant.ip, participant.port) as client:
-                        self.file.write(" VOTE_REQUEST\n")
+                        self.file.write(self.id + " VOTE_REQUEST\n")
                         self.file.flush()
                         self.startTime = time.time()
-                        vote = client.prepare()
+                        vote = client.prepare(self.id)
                         self.endTime = time.time()
                         if vote == Status.VOTE_ABORT or self.endTime - self.startTime > self.timeout:
                             self.doAbort()
                             return
                 except:
-                    self.doAbort
+                    self.doAbort()
                     print('error preparing participant', participant)
+                    return
         
         self.doCommit()
 
@@ -60,7 +63,6 @@ class Coordinator:
             return retStatus
                   
     def recover(self):
-        self.file = open('Coor.log', 'r+')
         last_line = ""
         for line in self.file:
             last_line = line
@@ -71,9 +73,20 @@ class Coordinator:
             print("Coordinator >>> Do not need to recover")
             self.isRecover = 0
             return True
-    
-    #def __last_recorded_state(self):
-        
+ 
+    def last_recorded_state(self, id):
+        self.file = open('Coor.log', 'r+') 
+        last_line = ""
+        for line in self.file:
+            line_split = line.split(" ")
+            if len(line_split) >= 2 and line_split[0] == id:
+                last_line = line
+
+        last_line = line.split(' ')
+        if last_line[-1] == 'GLOBAL_COMMIT\n':
+            return Status.GLOBAL_COMMIT
+        if last_line[-1] == 'GLOBAL_ABORT\n':
+            return Status.GLOBAL_ABORT
 
     def canCommit(self):
         return 'canCommit'
@@ -87,7 +100,7 @@ class Coordinator:
                 except:
                     print('error commiting participant', participant)
 
-        self.file.write('GLOBAL_COMMIT\n')
+        self.file.write(self.id + ' GLOBAL_COMMIT\n')
         self.file.flush()
 
     def doAbort(self):
@@ -102,7 +115,7 @@ class Coordinator:
                 except:
                     print('error preparing participant', participant)
 
-        self.file.write('GLOBAL_ABORT\n')
+        self.file.write(self.id + ' GLOBAL_ABORT\n')
         self.file.flush()
 
 if __name__ == '__main__':
@@ -135,12 +148,13 @@ if __name__ == '__main__':
     # handler = Coordinator(args.timeout, args.option)
     handler = Coordinator(args['timeout'], args['option'])
     handler.participants =  all_participants
-    handler.recover()
-    handler.prepare()
-
+   
     # with client_context(messages_thrift.Participant,'10.42.0.1', 7001) as client:
     #     client.recover()
 
-    server = make_server(messages_thrift.Participant, handler, '127.0.0.1', 7003)
+    server = make_server(messages_thrift.Coordinator, handler, '127.0.0.1', 7003)
     print("serving...")
     server.serve()
+
+    handler.recover()
+    handler.prepare()
