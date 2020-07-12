@@ -54,16 +54,19 @@ class Participant:
                         hasInfo = True
                         if state == Status.GLOBAL_ABORT:
                             self.doAbort()
+                            self.isRecover = 0
                             break
                         
                         if state == Status.GLOBAL_COMMIT:
                             self.doCommit()
+                            self.isRecover = 0
                             break
                 except:
                     print('Recovering participant in progress')
     
         if str(last_line[-1])=='VOTE_ABORT\n':
             self.doAbort()
+            self.isRecover = 0
 
     def last_recorded_state(self):
         self.file = open(self.participant.name + '.log', 'r+') 

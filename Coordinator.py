@@ -148,6 +148,9 @@ if __name__ == '__main__':
     # handler = Coordinator(args.timeout, args.option)
     handler = Coordinator(args['timeout'], args['option'])
     handler.participants =  all_participants
+
+    handler.recover()
+    handler.prepare()
    
     # with client_context(messages_thrift.Participant,'10.42.0.1', 7001) as client:
     #     client.recover()
@@ -155,6 +158,3 @@ if __name__ == '__main__':
     server = make_server(messages_thrift.Coordinator, handler, '127.0.0.1', 7003)
     print("serving...")
     server.serve()
-
-    handler.recover()
-    handler.prepare()
