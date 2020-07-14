@@ -5,6 +5,12 @@ import matplotlib.pyplot as plt
 from grave import plot_network
 from grave.style import use_attributes
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import time
+import networkx as nx
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import matplotlib.image as mpimg
+import numpy as np
 
 
 root = Tk()
@@ -76,17 +82,43 @@ b2 = Button(frame_participant, text = 'Apply')
 b2.grid(row = 2, column = 1, pady = 5, padx = 5, sticky='nsew')
 
 
-graph = nx.Graph()
-graph.add_nodes_from(['shar1Repl', 'shard2Repl', 'shard3Repl', 'congifRepl', 'mongoClient'])
+# graph = nx.Graph()
+# graph.add_nodes_from(['shard1Repl', 'shard2Repl', 'shard3Repl', 'congifRepl', 'mongoClient'])
 
-fig, ax = plt.subplots()
+# nodePos = nx.circular_layout(graph)
 
-nx.draw(graph,with_labels=True)
-canv = FigureCanvasTkAgg(fig, master = root)
-canv.draw()
 
-get_widz = canv.get_tk_widget()
-get_widz.grid(row = 0, column = 1, padx = 20, pady = 20, rowspan = 2)
+#     for i in range(10):
+#         for j in range(len(nodes)):
+#             tmps[j].remove()
+#             x2, y2 = nodePos[nodes[j]][0], nodePos[nodes[j]][1]
+#             tmps[j] = plt.text(x1+(x2-x1)*i*0.1,y1+(y2-y1)*i*0.1,message, horizontalalignment='center', verticalalignment='center')
+            
+#             time.sleep(0.05)
+#         #plt.pause(0.05)
+
+#     for i in range(len(nodes)):
+#         tmps[i].remove()
+
+#     plt.draw()
+
+# fig, ax = plt.subplots()
+
+# #nx.draw(graph,with_labels=True)
+# canv = FigureCanvasTkAgg(fig, master = root)
+# nx.draw_networkx(graph, with_labels = True,pos=nodePos)
+
+# sent_message('shard1Repl', ['shard2Repl', 'shard1Repl'], 'prepare')
+
+# get_widz = canv.get_tk_widget()
+# get_widz.grid(row = 0, column = 1, padx = 20, pady = 20, rowspan = 2)
+# def sent_message(node1, nodes, message):
+#     x1, y1 = nodePos[node1][0], nodePos[node1][1]
+    
+#     tmps = []
+
+#     for i in range(len(nodes)):
+#         tmps.append(plt.text(x1,y1,message,horizontalalignment='center', verticalalignment='center'))
 
 text1 = Text(frame_coordinator, height = 10, width = 40).grid(row  = 3, column = 0, columnspan = 2, padx = 5, pady = 5)
 text2 = Text(frame_participant, height = 10, width = 40).grid(row  = 3, column = 0, columnspan = 2, padx = 5, pady = 5)

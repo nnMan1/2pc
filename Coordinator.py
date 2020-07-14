@@ -7,25 +7,28 @@ import time
 import threading
 import random
 import time
+import uuid
 from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
-import uuid
 
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
 from messages_thrift import ParticipantID, Vote, Status, Participant
 
 class Coordinator:
-    def __init__(self, timeout, option):
+
+    def __init__(self, timeout = 20, option=0):
         self.participants = []
         self.file = open("Coor.log", "a+")
         self.timeout = timeout
         self.option = option   #mozemo da definisemo kad ce da padne koordinator
         self.startTime = time.time()
         self.endTime = time.time()
-        self.participant = participant
-        self.id = str(uuid.uuid4())
+        #self.participant = participant
 
     def prepare(self):
+
+        self.file = open("Coor.log", "a+")
+
         for participant in self.participants:
             if participant.name != 'coordinator':
 
@@ -73,7 +76,7 @@ class Coordinator:
             print("Coordinator >>> Do not need to recover")
             self.isRecover = 0
             return True
- 
+
     def last_recorded_state(self, id):
         self.file = open('Coor.log', 'r+') 
         last_line = ""
@@ -92,31 +95,56 @@ class Coordinator:
         return 'canCommit'
 
     def doCommit(self):
+
+        self.file = open("Coor.log", "a+")
+
         for participant in self.participants:
             if participant.name != 'coordinator':
-                try:
-                    with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
-                        status = client.doCommit()
-                except:
-                    print('error commiting participant', participant)
+                commited = False
+                while not commited:
+                    try:
+                        with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
+                            status = client.doCommit(self.id)
+                            if status == Status.SUCCESSFUL:
+                                commited = True
+                    except:
+                        print('error aborting participant', participant)
 
         self.file.write(self.id + ' GLOBAL_COMMIT\n')
         self.file.flush()
 
     def doAbort(self):
-        
+
+        self.file = open("Coor.log", "a+")
+
         for participant in self.participants:
             if participant.name != 'coordinator':
                 try:
                     with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
-                        status = client.doAbort()
+                        status = client.doAbort(self.id)
                         if status == Status.SUCCESSFUL:
                             break
                 except:
-                    print('error preparing participant', participant)
+                    print('error aborting participant', participant)
 
         self.file.write(self.id + ' GLOBAL_ABORT\n')
         self.file.flush()
+
+    def write(self):
+
+        self.id = str(uuid.uuid4())        
+        self.file = open("Coor.log", "a+")
+        self.file.write(self.id + ' INIT\n')
+        self.file.flush()
+
+        for participant in self.participants:
+            try:
+                with client_context(Participant, participant.ip, participant.port) as client:
+                    client.write(self.id)
+            except:
+                print('error writing to participant')
+            
+        self.prepare()
 
 if __name__ == '__main__':
     #python3 Coordinator.py 20 participants.txt 60 0
@@ -127,11 +155,24 @@ if __name__ == '__main__':
     # parser.add_argument('option',type=int,help='Option to crash Coordinator')
     # args = parser.parse_args()
 
-    args = {'timeout': 20, 'ParticipantsFile': 'participants.conf', 'option': 0}
     all_participants = []
 
+    with open('./conf/coordinator.conf', 'r') as participant:
+        for line in participant:
+            line = line.strip()
+            if len(line) == 0:
+                continue
+
+            (name,ip,port) = line.split(' ')
+            if name == 'coordinator':
+                participantID = ParticipantID()
+                participantID.name = name
+                participantID.ip = ip
+                participantID.port = int(port)
+                coordinator = participantID
+
     # with open(args.ParticipantsFile, 'r') as participant:
-    with open(args['ParticipantsFile'], 'r') as participant:
+    with open('conf/participants.conf', 'r') as participant:
         for line in participant:
             line = line.strip()
             if len(line) == 0:
@@ -146,15 +187,15 @@ if __name__ == '__main__':
             all_participants.append(participantID)
 
     # handler = Coordinator(args.timeout, args.option)
-    handler = Coordinator(args['timeout'], args['option'])
+    handler = Coordinator()
     handler.participants =  all_participants
 
     handler.recover()
-    handler.prepare()
+    handler.write()
    
     # with client_context(messages_thrift.Participant,'10.42.0.1', 7001) as client:
     #     client.recover()
 
-    server = make_server(messages_thrift.Coordinator, handler, '127.0.0.1', 7003)
+    server = make_server(messages_thrift.Coordinator, handler, '127.0.0.1', 7000)
     print("serving...")
     server.serve()

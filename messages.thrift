@@ -33,11 +33,13 @@ service Participant {
 
     void canCommit(),
 
-    void doCommit(),
+    Status doCommit(1: string id),
 
-    void doAbort(),
+    Status doAbort(1: string id),
 
-    Status prepare(1: string id)
+    Status prepare(1: string id),
+
+    Status write(1: string id)
 }
 
 service Coordinator {
