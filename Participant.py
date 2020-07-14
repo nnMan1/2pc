@@ -40,33 +40,42 @@ class Participant:
         if( str(last_line[-1]) == "" or str(last_line[-1]) == "GLOBAL_COMMIT\n" or str(last_line[-1])=="GLOBAL_ABORT\n"):
             print("Participant >>> Do not need to recover")
             self.isRecover = 0
-            return True
+            return
+
+        self.id = last_line[0]
 
         if str(last_line[-1])=='VOTE_COMMIT\n':
-            hasInfo = False
-            self.id = last_line[0]
-            print("Participant >>> Last message VOTE_COMMIT")
-            while not hasInfo:
-                time.sleep(1)
-                try:
-                    with  client_context(Coordinator, self.coordinator.ip, self.coordinator.port) as client:
-                        state = client.last_recorded_state(last_line[0])
-                        hasInfo = True
-                        if state == Status.GLOBAL_ABORT:
-                            self.doAbort(last_line[0])
-                            self.isRecover = 0
-                            break
+            # hasInfo = False
+            # self.id = last_line[0]
+            # print("Participant >>> Last message VOTE_COMMIT")
+            # while not hasInfo:
+            #     time.sleep(1)
+            #     try:
+            #         with  client_context(Coordinator, self.coordinator.ip, self.coordinator.port) as client:
+            #             state = client.last_recorded_state(last_line[0])
+            #             hasInfo = True
+            #             if state == Status.GLOBAL_ABORT:
+            #                 self.doAbort(last_line[0])
+            #                 self.isRecover = 0
+            #                 break
                         
-                        if state == Status.GLOBAL_COMMIT:
-                            self.doCommit(last_line[0])
-                            self.isRecover = 0
-                            break
-                except:
-                    print('Recovering participant in progress')
+            #             if state == Status.GLOBAL_COMMIT:
+            #                 self.doCommit(last_line[0])
+            #                 self.isRecover = 0
+            #                 break
+            #     except:
+            #         print('Recovering participant in progress')
+            return
     
         if str(last_line[-1])=='VOTE_ABORT\n':
             self.doAbort(self.id)
             self.isRecover = 0
+            return
+
+        if str(last_line[-1]=='INIT\n'):
+            self.doAbort(self.id)
+            self.isRecover = 0
+            return
 
         self.isRecover = 0
 
@@ -89,13 +98,13 @@ class Participant:
         vote = ''
         for line in self.file:
             line = line.split(' ')
-            if line[0] == id and line[-1] in ['VOTE_COMMIT\n', 'VOTE_ABORT\n']:
+            if line[0] == id and line[-1] in ['VOTE_COMMIT\n', 'VOTE_ABORT\n', 'GLOBAL_COMMIT\n', 'GLOBAL_ABORT\n']:
                 vote = line[-1]
 
-        if vote == 'VOTE_COMMIT\n':
+        if vote in ['VOTE_COMMIT\n', 'GLOBAL_COMMIT\n']:
             return True
         
-        if vote == 'VOTE+ABORT\n':
+        if vote == ['VOTE_ABORT\n', 'GLOBAL_ABORT\n']:
             return False
 
         return True

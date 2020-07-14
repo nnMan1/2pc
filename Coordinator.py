@@ -85,7 +85,7 @@ class Coordinator:
             if len(line_split) >= 2 and line_split[0] == id:
                 last_line = line
 
-        last_line = line.split(' ')
+        last_line = last_line.split(' ')
         if last_line[-1] == 'GLOBAL_COMMIT\n':
             return Status.GLOBAL_COMMIT
         if last_line[-1] == 'GLOBAL_ABORT\n':
@@ -191,7 +191,7 @@ if __name__ == '__main__':
     handler.participants =  all_participants
 
     handler.recover()
-    handler.write()
+    #handler.write()
    
     # with client_context(messages_thrift.Participant,'10.42.0.1', 7001) as client:
     #     client.recover()

@@ -18,12 +18,27 @@ class Client:
         print('Client created')
         
 
-    def __readParticipantsFile(self):
+    def __readParticipants(self):
 
-        self.partcipants = []
-        
-        with open(self.partcipantsFile, 'r') as participants:
-            for line in participants:
+        self.all_participants = []
+
+        with open('./conf/coordinator.conf', 'r') as participant:
+            for line in participant:
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+
+                (name,ip,port) = line.split(' ')
+                if name == 'coordinator':
+                    participantID = ParticipantID()
+                    participantID.name = name
+                    participantID.ip = ip
+                    participantID.port = int(port)
+                    self.coordinator = participantID
+
+        # with open(args.ParticipantsFile, 'r') as participant:
+        with open('conf/participants.conf', 'r') as participant:
+            for line in participant:
                 line = line.strip()
                 if len(line) == 0:
                     continue
@@ -33,25 +48,11 @@ class Client:
                 participantID.name = name
                 participantID.ip = ip
                 participantID.port = int(port)
-                self.partcipants.append(participantID)
 
-        print(self.partcipants)
+                self.all_participants.append(participantID)
 
 
-    def startParticipantsServers(self):
-
-        server = make_server(messages_thrift.Coordinator, self.coordinator, '127.0.0.1', 6000)
-        self.coordinator.recover()
-        print("serving coordinator...")
-        server.serve()
-
-        for paricipant in self.partcipants:
-            handler  = Participant(paricipant, self.timeout, self.coordinator)
-            handler.recover()
-            print("serving {}...".format(paricipant))
-            participant = make_server(messages_thrift.Participant, handler, '127.0.0.1', participant.port)
-            server.serve()
-
+    
 
     
 if __name__=="__main__":
