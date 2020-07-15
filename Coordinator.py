@@ -11,6 +11,8 @@ import uuid
 from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
 
+import clientMessage
+
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
 from messages_thrift import ParticipantID, Vote, Status, Participant
 
@@ -98,6 +100,8 @@ class Coordinator:
 
         self.file = open("Coor.log", "a+")
 
+        clientMessage.sentMessage('coordinator', [], 'GLOBAL_COMMIT')
+
         for participant in self.participants:
             if participant.name != 'coordinator':
                 commited = False
@@ -130,8 +134,11 @@ class Coordinator:
         self.file.write(self.id + ' GLOBAL_ABORT\n')
         self.file.flush()
 
+        clientMessage.sentMessage('coordinator', [], 'GLOBAL_ABORT')
+
     def write(self):
 
+        clientMessage.sentMessage('coordinator', [] ,'init')
         self.id = str(uuid.uuid4())        
         self.file = open("Coor.log", "a+")
         self.file.write(self.id + ' INIT\n')

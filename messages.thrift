@@ -56,5 +56,9 @@ service Coordinator {
 
     void prepare(),
 
-    void reciveVote(1: VoteMessage voteMessage)
+    void write(),
+}
+
+service Client {
+    void animate(1:string node1, 2:list<string> node2, 3: string message)
 }

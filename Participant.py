@@ -10,6 +10,8 @@ import time
 from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
 
+import clientMessage
+
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
 ParticipantID = messages_thrift.ParticipantID
 Coordinator = messages_thrift.Coordinator
@@ -21,14 +23,17 @@ Vote = messages_thrift.Vote
 
 class Participant:
 
-    def __init__(self, particpiant, coordinator, timeout = 20, option = 0):
+    def __init__(self, participant, coordinator, timeout = 20, option = 4):
         self.participant = participant
         self.coordinator = coordinator
         self.file = open(self.participant.name + '.log', 'a+') 
         self.option = option
         self.isRecover = 1 #prvo provjerimo da li ima nedovrsenih transakcija
+        self.server = make_server(messages_thrift.Participant, self, self.participant.ip, self.participant.port)
         print('Kreiran je jedan ucesnik transakcije')
-    
+        self. servereStopped = True
+        self.recover()
+
     def recover(self):
         self.file = open(self.participant.name + '.log', 'r+') 
         last_line = ""
@@ -112,12 +117,26 @@ class Participant:
     def doCommit(self, id):        
         self.file = open(self.participant.name + '.log', 'a+') 
         self.file.write(id + ' GLOBAL_COMMIT\n')
+
+        if self.option <= 3:
+            print('participant failure after commit')
+            self.stopServing()
+            return
+
+        clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'COMMIT_ACK')
         self.file.flush()
         return Status.SUCCESSFUL
 
     def doAbort(self, id):
         self.file = open(self.participant.name + '.log', 'a+') 
         self.file.write(id + ' GLOBAL_ABORT\n')
+
+        if self.option <= 3:
+            print('participant failure after commit')
+            self.stopServing()
+            return
+
+        clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'ABORT_ACK')
         self.file.flush()
         return Status.SUCCESSFUL
         
@@ -125,23 +144,32 @@ class Participant:
 
         self.file = open(self.participant.name + '.log', 'a+') 
 
-        if self.option == 1:
-            sys.exit("participant failure after voting")
+        if self.option <= 2:
+            print('participant failure after voting')
+            self.stopServing()
+            return
 
         if self.canCommit(id) and self.isRecover == 0:
             self.id = id
             self.file.write(id + ' VOTE_COMMIT\n')
+            clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'VOTE_COMMIT')
             self.file.flush()
             return Status.VOTE_COMMIT
         else:
             self.file.write(id + ' VOTE_ABORT\n')
             self.file.flush()
+            clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'VOTE_ABORT')
             return Status.VOTE_ABORT
     
     def write(self, id):
         self.file = open(self.participant.name + '.log', 'a+') 
 
         #command
+        print(self.option)
+        if self.option == 1:
+            print('participant failiure in initial')
+            self.stopServing()
+            return
 
         if self.isRecover == 0:
             self.id = id
@@ -150,6 +178,16 @@ class Participant:
             return Status.VOTE_COMMIT
         
         return Status.FAILED
+
+    def runServer(self):
+        print("serving {}...".format(self.participant))
+        self.servereStopped = False
+        self.server.serve()
+
+    def stopServing(self):
+        #self.server.close()
+        sys.exit("participant failure after voting")
+
 
 if __name__=="__main__":
 
@@ -187,8 +225,6 @@ if __name__=="__main__":
                 participant = participantID
                 
                 
-    handler = Participant(participant, coordinator)
-    handler.recover()
-    server = make_server(messages_thrift.Participant, handler, participant.ip, participant.port)
-    print("serving {}...".format(participant))
-    server.serve()
+    handler = Participant(participant, coordinator, option = 1)
+    handler.runServer()
+    
