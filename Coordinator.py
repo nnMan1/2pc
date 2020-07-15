@@ -41,7 +41,7 @@ def doAbortParticipant(participant, id):
 
 class Coordinator:
 
-    def __init__(self, coordinator, timeout = 20, option=0):
+    def __init__(self, coordinator, timeout = 20, option=4):
         self.participants = []
         self.file = open("Coor.log", "a+")
         self.timeout = timeout
@@ -54,6 +54,11 @@ class Coordinator:
         #self.participant = participant
 
     def prepare(self):
+
+        if self.option <= 2:
+            print('participant failure at voting')
+            self.stopServing()
+            return
 
         self.file = open("Coor.log", "a+")
 
@@ -94,6 +99,8 @@ class Coordinator:
             return retStatus
                   
     def recover(self):
+
+        self.file = open("Coor.log", "r+")
         last_line = ""
         for line in self.file:
             last_line = line
@@ -114,12 +121,12 @@ class Coordinator:
             self.write()
             return
 
-        if str(last_line[-1]) == 'VOTE_REQUEST':
+        if str(last_line[-1]) == 'VOTE_REQUEST\n':
             self.prepare()
             self.isRecover = 0
             return
 
-        if str(last_line[-1]) == 'GLOBAL_COMMIT':
+        if str(last_line[-1]) == 'GLOBAL_COMMIT\n':
             self.doCommit()
             return
 
@@ -146,6 +153,11 @@ class Coordinator:
 
     def doCommit(self):
 
+        if self.option <= 3:
+            print('coordinator failure at global commit')
+            self.stopServing()
+            return
+
         self.file = open("Coor.log", "a+")
 
         for participant in self.participants:
@@ -158,6 +170,11 @@ class Coordinator:
         self.file.flush()
 
     def doAbort(self):
+
+        if self.option <= 3:
+            print('participant failure after abort')
+            self.stopServing()
+            return
 
         self.file = open("Coor.log", "a+")
 
@@ -179,6 +196,11 @@ class Coordinator:
         self.file.write(self.id + ' INIT\n')
         self.file.flush()
 
+        if self.option == 1:
+            print('participant failiure in initial')
+            self.stopServing()
+            return
+
         for participant in self.participants:
             try:
                 with client_context(Participant, participant.ip, participant.port) as client:
@@ -193,6 +215,11 @@ class Coordinator:
         self.servereStopped = False
         self.server.serve()
 
+    def stopServing(self):
+        #self.server.close()
+        #raise SystemExit
+        os._exit(0)
+        #sys.exit("participant failure after voting")
     
 if __name__ == '__main__':
     #python3 Coordinator.py 20 participants.txt 60 0
