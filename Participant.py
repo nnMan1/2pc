@@ -19,7 +19,7 @@ Status = messages_thrift.Status
 VoteMessage = messages_thrift.VoteMessage
 Vote = messages_thrift.Vote
 
-#
+import participants
 
 class Participant:
 
@@ -70,6 +70,7 @@ class Participant:
             #                 break
             #     except:
             #         print('Recovering participant in progress')
+            self.isRecover = 0
             return
     
         if str(last_line[-1])=='VOTE_ABORT\n':
@@ -114,27 +115,29 @@ class Participant:
 
         return True
 
-    def doCommit(self, id):        
-        self.file = open(self.participant.name + '.log', 'a+') 
-        self.file.write(id + ' GLOBAL_COMMIT\n')
+    def doCommit(self, id):     
 
         if self.option <= 3:
             print('participant failure after commit')
             self.stopServing()
             return
+
+        self.file = open(self.participant.name + '.log', 'a+') 
+        self.file.write(id + ' GLOBAL_COMMIT\n')
 
         clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'COMMIT_ACK')
         self.file.flush()
         return Status.SUCCESSFUL
 
     def doAbort(self, id):
-        self.file = open(self.participant.name + '.log', 'a+') 
-        self.file.write(id + ' GLOBAL_ABORT\n')
 
         if self.option <= 3:
             print('participant failure after commit')
             self.stopServing()
             return
+
+        self.file = open(self.participant.name + '.log', 'a+') 
+        self.file.write(id + ' GLOBAL_ABORT\n')
 
         clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'ABORT_ACK')
         self.file.flush()
@@ -186,45 +189,23 @@ class Participant:
 
     def stopServing(self):
         #self.server.close()
-        sys.exit("participant failure after voting")
+        #raise SystemExit
+        os._exit(0)
+        #sys.exit("participant failure after voting")
+
 
 
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='coordinator')
-    #parser.add_argument('name',type=str,help='Name')
+    parser.add_argument('name',type=str,help='Name')
+    parser.add_argument('option', type=int)
     args = parser.parse_args()
-    args.name = 'server1'
+    #args.name = 'server1'
 
-    with open('./conf/coordinator.conf', 'r') as participant:
-        for line in participant:
-            line = line.strip()
-            if len(line) == 0:
-                continue
-
-            (name,ip,port) = line.split(' ')
-            if name == 'coordinator':
-                participantID = ParticipantID()
-                participantID.name = name
-                participantID.ip = ip
-                participantID.port = int(port)
-                coordinator = participantID
-
-    with open('./conf/participants.conf', 'r') as participant:
-        for line in participant:
-            line = line.strip()
-            if len(line) == 0:
-                continue
-
-            (name,ip,port) = line.split(' ')
-            if name == args.name:
-                participantID = ParticipantID()
-                participantID.name = name
-                participantID.ip = ip
-                participantID.port = int(port)
-                participant = participantID
-                
-                
-    handler = Participant(participant, coordinator, option = 1)
+    coordinator = participants.getCoordinator()
+    participant = participants.getParticipant(args.name)
+                        
+    handler = Participant(participant, coordinator, option = args.option)
     handler.runServer()
     

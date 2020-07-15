@@ -35,3 +35,22 @@ def getCoordinator():
                 coordinator = participantID
 
     return coordinator
+
+def getAllParticipants():
+    
+    all_participants = []
+    with open('conf/participants.conf', 'r') as participants:
+            for line in participants:
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+
+                (name,ip,port) = line.split(' ')
+                participantID = ParticipantID()
+                participantID.name = name
+                participantID.ip = ip
+                participantID.port = int(port)
+
+                all_participants.append(participantID)
+
+    return all_participants
