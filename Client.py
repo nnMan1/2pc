@@ -82,8 +82,6 @@ if __name__=="__main__":
     x = threading.Thread(target=handler.runServer, args=())
     x.start()
 
-    handler.animate('shard1repl', ['shard2repl'], 'test')
-
     #root.after(1, handler.runServer)
     #ClientInterface(root ,handler.runTransaction)
     #handler.graph.sentMessage('shard1rparticipantparticipantepl', ['shard3repl', 'shard2repl'], 'prepare')

@@ -4,31 +4,24 @@ import thriftpy
 from Network import Network
 from Client import Client
 import threading
+from queue import Queue
 
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
 from messages_thrift import ParticipantID, Coordinator
 
+q = Queue()
+
 class ClientInterface:
 
-    def __init__(self, root, runCallback = None):
+    def __init__(self):
         super().__init__()
-        self.runCallback = runCallback
-
-        self.root = root
 
         self.network = Network(['server2', 'server1', 'coordinator'])
         self.network.draw()
 
-        self.client = Client(self.network.sentMessage)
+        self.client = Client(self.put)
         x = threading.Thread(target=self.client.runServer, args=())
-        x.start()
-        
-        root.title('Client interface')
-
-        b2 = Button(root, text = 'Run Transaction', command = self.client.runTransaction)
-        b2.grid(row = 2, column = 1, pady = 5, padx = 5, sticky='nsew')
-
-        root.mainloop()
+        x.start()        
 
     def __readParticipants(self):
 
@@ -63,9 +56,15 @@ class ClientInterface:
 
                 self.all_participants.append(participantID)
 
+    def put(self, name1, names, message):
+        q.put((name1, names, message))
 
 if __name__ == '__main__':
 
-    root = Tk()
-    ClientInterface(root)
+    interface = ClientInterface()
+
+    while True:  # a lightweight "event loop"
+        ans = q.get()
+        interface.network.sentMessage(ans[0], ans[1], ans[2])
+        q.task_done()
 

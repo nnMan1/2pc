@@ -40,7 +40,7 @@ class ParticiantInterface:
         fail_coordinator.set(self.failOptions[0]) 
         fail_coordinator_value = self.failOptions[0]
 
-        Label(frame, text='Fail coordinator time:', padx = 5).grid(row=0, column=0)
+        Label(frame, text='Fail participant time:', padx = 5).grid(row=0, column=0)
 
         def selected_coordinator_fail(event):
             self.changeTerminationTime(fail_dropdown.get())

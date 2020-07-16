@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 import matplotlib.image as mpimg
 import numpy as np
 
-#plt.ion()
+plt.ion()
 
 class Network:
     def __init__(self, nodes):

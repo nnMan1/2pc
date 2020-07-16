@@ -17,7 +17,6 @@ messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift"
 from messages_thrift import ParticipantID, Vote, Status, Participant
 
 def doCommitPartcipant(participant, id):
-        clientMessage.sentMessage('coordinator', [participant.name], 'GLOBAL_COMMIT')
         try:
             with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
                 status = client.doCommit(id)
@@ -25,17 +24,20 @@ def doCommitPartcipant(participant, id):
                     commited = True
         except:
             print('error aborting participant', participant)
+            clientMessage.sentMessage('coordinator', [participant.name], 'GLOBAL_COMMIT')
+            time.sleep(2)
             doCommitPartcipant(participant, id)
 
 def doAbortParticipant(participant, id):
-        clientMessage.sentMessage('coordinator', [participant.name], 'GLOBAL_COMMIT')
         try:
             with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
                 status = client.doCommit(id)
                 if status == Status.SUCCESSFUL:
                     commited = True
         except:
+            clientMessage.sentMessage('coordinator', [participant.name], 'GLOBAL_ABORT')
             print('error aborting participant', participant)
+            time.sleep(2)
             doAbortParticipant(participant, id)
     
 
@@ -49,7 +51,6 @@ class Coordinator:
         self.startTime = time.time()
         self.endTime = time.time()
         self.coordinator = coordinator
-        self.recover()
         self.server = make_server(messages_thrift.Coordinator, self, self.coordinator.ip, self.coordinator.port)
         #self.participant = participant
 
@@ -160,6 +161,8 @@ class Coordinator:
 
         self.file = open("Coor.log", "a+")
 
+        clientMessage.sentMessage('coordinator', [], 'GLOBAL_COMMIT')
+
         for participant in self.participants:
             if participant.name != 'coordinator':
                 thread = threading.Thread(target=doCommitPartcipant, args=[participant, self.id])
@@ -178,6 +181,8 @@ class Coordinator:
 
         self.file = open("Coor.log", "a+")
 
+        clientMessage.sentMessage('coordinator', [], 'GLOBAL_ABORT')
+
         for participant in self.participants:
             if participant.name != 'coordinator':
                 thread = threading.Thread(target=doAbortParticipant, args=[participant, self.id])
@@ -185,8 +190,6 @@ class Coordinator:
 
         self.file.write(self.id + ' GLOBAL_ABORT\n')
         self.file.flush()
-
-        clientMessage.sentMessage('coordinator', [], 'GLOBAL_ABORT')
 
     def write(self):
 
@@ -264,5 +267,7 @@ if __name__ == '__main__':
     # handler = Coordinator(args.timeout, args.option)
     handler = Coordinator(coordinator)
     handler.participants =  all_participants
+
+    handler.recover()
 
     handler.runServer()

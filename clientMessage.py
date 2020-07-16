@@ -12,4 +12,4 @@ def sentMessage(source, destinations, message):
     except:
         return
 
-sentMessage('shard1repl', ['shard2repl'], 'message')
+#sentMessage('shard1repl', ['shard2repl'], 'message')
