@@ -52,6 +52,7 @@ class Coordinator:
         self.endTime = time.time()
         self.coordinator = coordinator
         self.server = make_server(messages_thrift.Coordinator, self, self.coordinator.ip, self.coordinator.port)
+        clientMessage.sentMessage('coordinator', 'TurnOn', None)
         #self.participant = participant
 
     def prepare(self):

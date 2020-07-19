@@ -9,6 +9,7 @@ import random
 import time
 from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
+import sqlite3
 
 import clientMessage
 
@@ -30,6 +31,19 @@ class Participant:
         self.option = option
         self.isRecover = 1 #prvo provjerimo da li ima nedovrsenih transakcija
         self.server = make_server(messages_thrift.Participant, self, self.participant.ip, self.participant.port)
+        try:
+            self.conn = sqlite3.connect(self.participant.name + '.db')
+            self.cur = self.conn.cursor()
+            if(os.path.isfile( self.participant.name + '.db') == True):
+                self.file.flush()
+                self.cur.execute('CREATE TABLE IF NOT EXISTS Info(filename TEXT PRIMARY KEY, content TEXT)')
+                self.cur.execute('CREATE TABLE IF NOT EXISTS Backup(filename TEXT PRIMARY KEY, content TEXT)')
+                self.conn.commit()
+                self.conn.close()
+        except:
+            print("Error connectiong to database")
+            sys.exit(1)
+
         print('Kreiran je jedan ucesnik transakcije')
         self. servereStopped = True
         self.recover()
@@ -98,7 +112,7 @@ class Participant:
             return Status.GLOBAL_COMMIT
         if last_line[-1] == 'GLOBAL_ABORT\n':
             return Status.GLOBAL_ABORT
-
+        
     def canCommit(self, id):
         self.file = open(self.participant.name + '.log', 'r+') 
         vote = ''
@@ -198,10 +212,11 @@ class Participant:
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='coordinator')
-    parser.add_argument('name',type=str,help='Name')
-    parser.add_argument('option', type=int)
+    #parser.add_argument('name',type=str,help='Name')
+    #parser.add_argument('option', type=int)
     args = parser.parse_args()
-    #args.name = 'server1'
+    args.name = 'server1'
+    args.option = 4
 
     coordinator = participants.getCoordinator()
     participant = participants.getParticipant(args.name)

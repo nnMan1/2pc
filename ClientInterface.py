@@ -65,6 +65,13 @@ if __name__ == '__main__':
 
     while True:  # a lightweight "event loop"
         ans = q.get()
-        interface.network.sentMessage(ans[0], ans[1], ans[2])
+        print(ans)
+        if ans[1] == "TurnOff":
+            interface.network.turnOffNode(ans[0])
+        elif ans[1] == "TurnOn":
+            interface.network.turnOnNode(ans[0])
+        else:    
+            interface.network.sentMessage(ans[0], ans[1], ans[2])
+
         q.task_done()
 

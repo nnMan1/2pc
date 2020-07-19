@@ -70,6 +70,7 @@ class Client:
         server = make_server(messages_thrift.Client, self, '127.0.0.1', 6000)
         print("serving client ...")
         server.serve()
+  
 
 if __name__=="__main__":
 
