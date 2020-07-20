@@ -90,4 +90,5 @@ class CoordinatorInterface:
 if __name__ == '__main__':
     root = Tk()
     CoordinatorInterface(root, ['NEVER', 'INITIAL', 'READY', 'COMMIT/ABORT'])
+    
 

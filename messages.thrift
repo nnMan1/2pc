@@ -8,6 +8,7 @@ enum Status {
   GLOBAL_ABORT = 6;
   COMMIT = 7;
   ABORT = 8;
+  NO_INFO = 9;
 }
 
 struct ParticipantID {
@@ -39,7 +40,9 @@ service Participant {
 
     Status prepare(1: string id),
 
-    Status write(1: string id)
+    Status write(1: string id, 2: string doc_name, 3: string doc_content),
+
+    string read(1: string doc_name)
 }
 
 service Coordinator {
@@ -56,7 +59,9 @@ service Coordinator {
 
     void prepare(),
 
-    void write(),
+    void write(1: string doc_name,2: string doc_content),
+
+    string read(1: string doc_name,2: string participantName)
 }
 
 service Client {

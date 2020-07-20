@@ -11,6 +11,7 @@ import uuid
 from thriftpy.rpc import make_server
 from thriftpy.rpc import client_context
 
+import participants
 import clientMessage
 
 messages_thrift = thriftpy.load("messages.thrift", module_name="messages_thrift")
@@ -31,7 +32,7 @@ def doCommitPartcipant(participant, id):
 def doAbortParticipant(participant, id):
         try:
             with client_context(messages_thrift.Participant, participant.ip, participant.port) as client:
-                status = client.doCommit(id)
+                status = client.doAbort(id)
                 if status == Status.SUCCESSFUL:
                     commited = True
         except:
@@ -169,7 +170,6 @@ class Coordinator:
                 thread = threading.Thread(target=doCommitPartcipant, args=[participant, self.id])
                 thread.start()
                     
-
         self.file.write(self.id + ' GLOBAL_COMMIT\n')
         self.file.flush()
 
@@ -192,7 +192,7 @@ class Coordinator:
         self.file.write(self.id + ' GLOBAL_ABORT\n')
         self.file.flush()
 
-    def write(self):
+    def write(self, doc_name, doc_content):
 
         clientMessage.sentMessage('coordinator', [] ,'init')
         self.id = str(uuid.uuid4())        
@@ -208,11 +208,20 @@ class Coordinator:
         for participant in self.participants:
             try:
                 with client_context(Participant, participant.ip, participant.port) as client:
-                    client.write(self.id)
+                    client.write(self.id, doc_name, doc_content)
             except:
                 print('error writing to participant')
             
         self.prepare()
+
+    def read(self, filename, participantName):
+        for participant in self.participants:
+            if participant.name == participantName:
+                try:
+                    with client_context(Participant, participant.ip, participant.port) as client:
+                        return client.read(filename)
+                except:
+                    print('error reading from participant')
 
     def runServer(self):
         print("serving {}...".format(self.coordinator))
@@ -234,40 +243,14 @@ if __name__ == '__main__':
     # parser.add_argument('option',type=int,help='Option to crash Coordinator')
     # args = parser.parse_args()
 
-    all_participants = []
-
-    with open('./conf/coordinator.conf', 'r') as participant:
-        for line in participant:
-            line = line.strip()
-            if len(line) == 0:
-                continue
-
-            (name,ip,port) = line.split(' ')
-            if name == 'coordinator':
-                participantID = ParticipantID()
-                participantID.name = name
-                participantID.ip = ip
-                participantID.port = int(port)
-                coordinator = participantID
-
-    # with open(args.ParticipantsFile, 'r') as participant:
-    with open('conf/participants.conf', 'r') as participant:
-        for line in participant:
-            line = line.strip()
-            if len(line) == 0:
-                continue
-
-            (name,ip,port) = line.split(' ')
-            participantID = ParticipantID()
-            participantID.name = name
-            participantID.ip = ip
-            participantID.port = int(port)
-
-            all_participants.append(participantID)
-
+    all_participants = participants.getAllParticipants()
+    coordinator = participants.getCoordinator()
+   
     # handler = Coordinator(args.timeout, args.option)
     handler = Coordinator(coordinator)
     handler.participants =  all_participants
+    #handler.write('doc1', 'content1')
+    #print(handler.read('doc1', 'server1'))
 
     handler.recover()
 

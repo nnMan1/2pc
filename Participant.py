@@ -25,6 +25,8 @@ import participants
 class Participant:
 
     def __init__(self, participant, coordinator, timeout = 20, option = 4):
+
+        self.lock = threading.Lock()
         self.participant = participant
         self.coordinator = coordinator
         self.file = open(self.participant.name + '.log', 'a+') 
@@ -110,24 +112,40 @@ class Participant:
         last_line = line.split(' ')
         if last_line[-1] == 'GLOBAL_COMMIT\n':
             return Status.GLOBAL_COMMIT
+        if last_line[-1] == 'VOTE_COMMIT\n':
+            return Status.VOTE_COMMIT
+        if last_line[-1] == 'VOTE_ABORT\n':
+            return Status.VOTE_ABORT
         if last_line[-1] == 'GLOBAL_ABORT\n':
             return Status.GLOBAL_ABORT
         
+        return Status.NO_INFO
+
+    def transactionDocumentName(self, id):
+        self.file = open(self.participant.name + '.log', 'r+') 
+        last_line = ""
+        for line in self.file:
+            line_split = line.split(" ")
+            if len(line_split) >= 2 and line_split[0] == id:
+                return line_split[1]
+        
+        return ''
+
     def canCommit(self, id):
         self.file = open(self.participant.name + '.log', 'r+') 
         vote = ''
         for line in self.file:
             line = line.split(' ')
-            if line[0] == id and line[-1] in ['VOTE_COMMIT\n', 'VOTE_ABORT\n', 'GLOBAL_COMMIT\n', 'GLOBAL_ABORT\n']:
+            if line[0] == id and line[-1] in ['INIT\n', 'VOTE_COMMIT\n', 'VOTE_ABORT\n', 'GLOBAL_COMMIT\n', 'GLOBAL_ABORT\n']:
                 vote = line[-1]
 
-        if vote in ['VOTE_COMMIT\n', 'GLOBAL_COMMIT\n']:
+        if vote in ['VOTE_COMMIT\n', 'GLOBAL_COMMIT\n', 'INIT\n']:
             return True
         
         if vote == ['VOTE_ABORT\n', 'GLOBAL_ABORT\n']:
             return False
 
-        return True
+        return False 
 
     def doCommit(self, id):     
 
@@ -136,8 +154,21 @@ class Participant:
             self.stopServing()
             return
 
+        filename = self.transactionDocumentName(id)
+
         self.file = open(self.participant.name + '.log', 'a+') 
-        self.file.write(id + ' GLOBAL_COMMIT\n')
+
+        try:
+            self.conn = sqlite3.connect(self.participant.name + '.db')
+            self.cur = self.conn.cursor()
+            self.cur.execute('INSERT OR REPLACE INTO Info SELECT * FROM Backup WHERE filename = (?)', (filename,))
+            self.conn.commit()
+        except Exception as e:
+            print(e.args)
+            return Status.FAILED
+
+        
+        self.file.write(id + ' ' + filename +  ' GLOBAL_COMMIT\n')
 
         clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'COMMIT_ACK')
         self.file.flush()
@@ -150,8 +181,22 @@ class Participant:
             self.stopServing()
             return
 
+        filename = self.transactionDocumentName(id)
+
         self.file = open(self.participant.name + '.log', 'a+') 
-        self.file.write(id + ' GLOBAL_ABORT\n')
+
+        try:
+            self.conn = sqlite3.connect(self.participant.name + '.db')
+            self.cur = self.conn.cursor()
+            self.cur.execute('DELETE FROM Backup WHERE filename = (?)', (filename,))
+            self.conn.commit()
+        except Exception as e:
+            print(e.args)
+            return Status.FAILED
+
+
+        self.file = open(self.participant.name + '.log', 'a+') 
+        self.file.write(id + ' ' + filename + ' GLOBAL_ABORT\n')
 
         clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'ABORT_ACK')
         self.file.flush()
@@ -178,8 +223,25 @@ class Participant:
             clientMessage.sentMessage(self.participant.name, [self.coordinator.name], 'VOTE_ABORT')
             return Status.VOTE_ABORT
     
-    def write(self, id):
-        self.file = open(self.participant.name + '.log', 'a+') 
+    def isDataLocked(self, doc_name):
+        isLocked = False
+        self.file = open(self.participant.name + '.log', 'r+') 
+        last_line = ""
+        id = ''
+        for line in self.file:
+            line_split = line.split(" ")
+            #id docName log
+            if len(line_split) >= 3 and line_split[1] == doc_name:
+                if line_split[-1] == 'INIT\n':
+                    isLocked = True
+                    id = line_split[0]
+                
+                if line_split[0] == id  and line_split[-1] in ['GLOBAL_COMMIT', 'GLOBAL_ABORT']:
+                    isLocked = False
+                            
+        return isLocked
+
+    def write(self, id, doc_name, doc_content):
 
         #command
         print(self.option)
@@ -189,12 +251,49 @@ class Participant:
             return
 
         if self.isRecover == 0:
+            self.lock.acquire()
+            try:
+                if self.isDataLocked(doc_name):
+                    return  Status.FAILED
+                else:
+                    self.file = open(self.participant.name + '.log', 'a+') 
+                    self.file.write(id + ' '+ doc_name + ' INIT\n')
+                    self.file.flush()
+            finally:
+                self.lock.release()
+            
             self.id = id
-            self.file.write(id + ' INIT\n')
-            self.file.flush()
-            return Status.VOTE_COMMIT
+
+            try:
+                self.conn = sqlite3.connect(self.participant.name + '.db')
+                self.cur = self.conn.cursor()
+                self.cur.execute('INSERT OR REPLACE INTO Backup VALUES(?, ?)', (doc_name, doc_content))
+                self.conn.commit()
+            except Exception as e:
+                self.conn.rollback()
+                raise e
+            finally:
+                self.conn.close()
+
+            return Status.SUCCESSFUL
         
         return Status.FAILED
+
+    def read(self, doc_name):
+        try:
+            self.conn = sqlite3.connect(self.participant.name + '.db')
+            self.cur = self.conn.cursor()
+            self.cur.execute('SELECT content FROM Info WHERE filename = ?', (doc_name,))
+            cont = str(self.cur.fetchone()[0])
+            if cont == None:
+                cont = ""
+            self.conn.commit()
+            return cont
+        except Exception as e:
+            self.conn.rollback()
+            raise e
+        finally:
+            self.conn.close()
 
     def runServer(self):
         print("serving {}...".format(self.participant))
@@ -212,15 +311,16 @@ class Participant:
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='coordinator')
-    #parser.add_argument('name',type=str,help='Name')
-    #parser.add_argument('option', type=int)
+    parser.add_argument('name',type=str,help='Name')
+    parser.add_argument('option', type=int)
     args = parser.parse_args()
-    args.name = 'server1'
-    args.option = 4
+    # args.name = 'server1'
+    # args.option = 4
 
     coordinator = participants.getCoordinator()
     participant = participants.getParticipant(args.name)
                         
     handler = Participant(participant, coordinator, option = args.option)
     handler.runServer()
+    #print(handler.read('doc1'))
     
